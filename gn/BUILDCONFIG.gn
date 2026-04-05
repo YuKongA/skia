@@ -69,6 +69,7 @@ is_tvos = current_os == "tvos"
 is_linux = current_os == "linux"
 is_mac = current_os == "mac"
 is_wasm = current_os == "wasm"
+is_mingw = current_os == "mingw"
 is_win = current_os == "win"
 
 # Dawn has references to fuchsia, but Skia's GN rules do not
@@ -234,7 +235,7 @@ if (!is_official_build) {
 }
 
 if (is_win) {
-  # Windows tool chain
+  # Windows tool chain (MSVC/Clang-CL)
   set_default_toolchain("//gn/toolchain:msvc")
   default_toolchain_name = "msvc"
   host_toolchain = "msvc_host"

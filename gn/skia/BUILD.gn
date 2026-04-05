@@ -59,7 +59,7 @@ config("default") {
   # Disable warnings about unknown attributes.
   # (These unknown attribute warnings are on by default, so we don't make
   # disabling them part of :warnings, as some targets remove :warnings.)
-  if (is_win && !is_clang) {
+  if (is_win && !is_clang && !is_mingw) {
     cflags += [
       "/wd5030",
       "/wd5051",
@@ -74,6 +74,14 @@ config("default") {
     cflags += [ "-ffp-contract=off" ]
   }
 
+  if (is_win || is_mingw) {
+    defines += [
+      "_CRT_SECURE_NO_WARNINGS",  # Disables warnings about sscanf().
+      "_HAS_EXCEPTIONS=0",  # Disables exceptions in MSVC STL.
+      "WIN32_LEAN_AND_MEAN",
+      "NOMINMAX",
+    ]
+  }
   if (is_win) {
     if (is_clang && current_cpu == "arm64") {
       cflags += [ "--target=arm64-windows" ]
@@ -88,12 +96,6 @@ config("default") {
       # https://developercommunity.visualstudio.com/t/Incorrect-C4573-when-taking-address-of-m/10662923
       cflags_cc += [ "/Zc:lambda" ]
     }
-    defines += [
-      "_CRT_SECURE_NO_WARNINGS",  # Disables warnings about sscanf().
-      "_HAS_EXCEPTIONS=0",  # Disables exceptions in MSVC STL.
-      "WIN32_LEAN_AND_MEAN",
-      "NOMINMAX",
-    ]
 
     _include_dirs = [
       "$win_vc/Tools/MSVC/$win_toolchain_version/include",
@@ -126,6 +128,16 @@ config("default") {
     ]
     cflags_cc += [ "-fvisibility-inlines-hidden" ]
     cflags_cc += [ "-std=c++20" ]
+  }
+  if (is_mingw) {
+    # GCC 15 on mingw: use gnu++20 instead of c++20 to enable full __int128
+    # support in libstdc++ (fixes numeric_traits, <limits>, <numbers>).
+    cflags_cc -= [ "-std=c++20" ]
+    cflags_cc += [ "-std=gnu++20" ]
+    cflags += [
+      # GCC 15 -Wtemplate-body flags issues in its own libstdc++ headers.
+      "-Wno-template-body",
+    ]
   }
 
   if (current_cpu == "arm") {

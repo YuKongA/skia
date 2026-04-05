@@ -57,6 +57,8 @@ if (skia_use_system_icu) {
       ]
       if (is_mac || is_ios) {
         args += [ "--mac" ]
+      } else if (is_mingw) {
+        args += [ "--mingw" ]
       }
     }
   }
@@ -107,6 +109,14 @@ if (skia_use_system_icu) {
       # which makes recent libc++ <ctime> not #include-able with -std=c++17.
       "_XOPEN_SOURCE=0",
     ]
+    if (is_mingw) {
+      # MinGW's CRT uses _timezone/_tzname (not __timezone/__tzname).
+      # ICU misdetects __GLIBC__ on MinGW and picks the wrong names.
+      defines += [
+        "U_TIMEZONE=_timezone",
+        "U_TZNAME=_tzname",
+      ]
+    }
     if (target_cpu == "wasm") {
       # Tell ICU that we are a 32 bit platform, otherwise,
       # double-conversion-utils.h doesn't know how to operate.

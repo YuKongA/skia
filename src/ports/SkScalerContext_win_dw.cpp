@@ -9,6 +9,26 @@
 #include "include/core/SkTypes.h"
 #if defined(SK_BUILD_FOR_WIN)
 
+// MinGW's dwrite_3.h has a newer IDWritePaintReader API with an extra struct_size
+// parameter, and renames the 4-arg GetGlyphImageFormats to GetGlyphImageFormats_.
+#ifdef __MINGW64__
+#define SK_DW_PAINT_READER_STRUCT_SIZE , sizeof(DWRITE_PAINT_ELEMENT)
+#define SK_DW_SET_CURRENT_GLYPH(reader, glyph, elem, clip, attr) \
+    (reader)->SetCurrentGlyph((glyph), (elem), sizeof(DWRITE_PAINT_ELEMENT), (clip), (attr))
+#define SK_DW_GET_GLYPH_IMAGE_FORMATS(face, glyph, first, last, out) \
+    (face)->GetGlyphImageFormats_((glyph), (first), (last), (out))
+#define SK_DW_SET_TEXT_COLOR(reader, color) \
+    do { auto _c = (color); (reader)->SetTextColor(&_c); } while(0)
+#else
+#define SK_DW_PAINT_READER_STRUCT_SIZE
+#define SK_DW_SET_CURRENT_GLYPH(reader, glyph, elem, clip, attr) \
+    (reader)->SetCurrentGlyph((glyph), (elem), (clip), (attr))
+#define SK_DW_GET_GLYPH_IMAGE_FORMATS(face, glyph, first, last, out) \
+    (face)->GetGlyphImageFormats((glyph), (first), (last), (out))
+#define SK_DW_SET_TEXT_COLOR(reader, color) \
+    (reader)->SetTextColor(color)
+#endif
+
 #undef GetGlyphIndices
 
 #include "include/core/SkBBHFactory.h"
@@ -622,11 +642,11 @@ bool SkScalerContext_DW::drawColorV1Paint(SkCanvas& canvas,
     auto drawChildren = [&](uint32_t childCount) -> bool {
         if (childCount != 0) {
             DWRITE_PAINT_ELEMENT childElement;
-            HRB(reader.MoveToFirstChild(&childElement));
+            HRB(reader.MoveToFirstChild(&childElement SK_DW_PAINT_READER_STRUCT_SIZE));
             this->drawColorV1Paint(canvas, reader, childElement);
 
             for (uint32_t i = 1; i < childCount; i++) {
-                HRB(reader.MoveToNextSibling(&childElement));
+                HRB(reader.MoveToNextSibling(&childElement SK_DW_PAINT_READER_STRUCT_SIZE));
                 this->drawColorV1Paint(canvas, reader, childElement);
             }
 
@@ -1178,13 +1198,13 @@ bool SkScalerContext_DW::drawColorV1Paint(SkCanvas& canvas,
         DWRITE_PAINT_ELEMENT sourceElement;
         DWRITE_PAINT_ELEMENT backdropElement;
 
-        HRBM(reader.MoveToFirstChild(&sourceElement), "Could not move to child.");
-        HRBM(reader.MoveToNextSibling(&backdropElement), "Could not move to sibiling.");
+        HRBM(reader.MoveToFirstChild(&sourceElement SK_DW_PAINT_READER_STRUCT_SIZE), "Could not move to child.");
+        HRBM(reader.MoveToNextSibling(&backdropElement SK_DW_PAINT_READER_STRUCT_SIZE), "Could not move to sibiling.");
         canvas.saveLayer(nullptr, nullptr);
         this->drawColorV1Paint(canvas, reader, backdropElement);
 
         HRBM(reader.MoveToParent(), "Could not move to parent.");
-        HRBM(reader.MoveToFirstChild(&sourceElement), "Could not move to child.");
+        HRBM(reader.MoveToFirstChild(&sourceElement SK_DW_PAINT_READER_STRUCT_SIZE), "Could not move to child.");
         canvas.saveLayer(nullptr, &blendModePaint);
         this->drawColorV1Paint(canvas, reader, sourceElement);
 
@@ -1215,7 +1235,7 @@ bool SkScalerContext_DW::drawColorV1Image(const SkGlyph& glyph, SkCanvas& canvas
     DWRITE_PAINT_ELEMENT paintElement;
     D2D_RECT_F clipBox;
     DWRITE_PAINT_ATTRIBUTES attributes;
-    HRBM(paintReader->SetCurrentGlyph(glyphIndex, &paintElement, &clipBox, &attributes),
+    HRBM(SK_DW_SET_CURRENT_GLYPH(paintReader, glyphIndex, &paintElement, &clipBox, &attributes),
          "Could not set current glyph.");
 
     if (paintElement.paintType == DWRITE_PAINT_TYPE_NONE) {
@@ -1244,7 +1264,7 @@ bool SkScalerContext_DW::drawColorV1Image(const SkGlyph& glyph, SkCanvas& canvas
 
     // The DirectWrite interface returns resolved colors if these are provided.
     // Indexes and alphas are reported but there is no reason to duplicate the color calculation.
-    paintReader->SetTextColor(dw_color_from(SkColor4f::FromColor(fRec.fForegroundColor)));
+    SK_DW_SET_TEXT_COLOR(paintReader, dw_color_from(SkColor4f::FromColor(fRec.fForegroundColor)));
     paintReader->SetCustomColorPalette(typeface->fDWPalette.get(), typeface->fPaletteEntryCount);
 
     return this->drawColorV1Paint(canvas, *paintReader, paintElement);
@@ -1281,11 +1301,11 @@ bool SkScalerContext_DW::generateColorV1PaintBounds(
             return true;
         }
         DWRITE_PAINT_ELEMENT childElement;
-        HRB(reader.MoveToFirstChild(&childElement));
+        HRB(reader.MoveToFirstChild(&childElement SK_DW_PAINT_READER_STRUCT_SIZE));
         this->generateColorV1PaintBounds(ctm, bounds, reader, childElement);
 
         for (uint32_t i = 1; i < childCount; ++i) {
-            HRB(reader.MoveToNextSibling(&childElement));
+            HRB(reader.MoveToNextSibling(&childElement SK_DW_PAINT_READER_STRUCT_SIZE));
             this->generateColorV1PaintBounds(ctm, bounds, reader, childElement);
         }
 
@@ -1431,7 +1451,7 @@ bool SkScalerContext_DW::generateColorV1Metrics(const SkGlyph& glyph, SkRect* bo
     D2D_RECT_F clipBox;
     DWRITE_PAINT_ATTRIBUTES attributes;
     // If the glyph is not color this will succeed but return paintType NONE.
-    HRBM(paintReader->SetCurrentGlyph(glyphIndex, &paintElement, &clipBox, &attributes),
+    HRBM(SK_DW_SET_CURRENT_GLYPH(paintReader, glyphIndex, &paintElement, &clipBox, &attributes),
          "Could not set the current glyph.");
 
     if (paintElement.paintType == DWRITE_PAINT_TYPE_NONE) {
@@ -1714,7 +1734,7 @@ bool SkScalerContext_DW::generatePngMetrics(const SkGlyph& glyph, SkRect* bounds
     }
 
     DWRITE_GLYPH_IMAGE_FORMATS imageFormats;
-    HRBM(fontFace4->GetGlyphImageFormats(glyph.getGlyphID(), 0, UINT32_MAX, &imageFormats),
+    HRBM(SK_DW_GET_GLYPH_IMAGE_FORMATS(fontFace4, glyph.getGlyphID(), 0, UINT32_MAX, &imageFormats),
          "Cannot get glyph image formats.");
     if (!(imageFormats & DWRITE_GLYPH_IMAGE_FORMATS_PNG)) {
         return false;
@@ -2262,7 +2282,7 @@ bool SkScalerContext_DW::drawSVGImage(const SkGlyph& glyph, SkCanvas& canvas) {
     }
 
     DWRITE_GLYPH_IMAGE_FORMATS imageFormats;
-    HRBM(fontFace4->GetGlyphImageFormats(glyph.getGlyphID(), 0, UINT32_MAX, &imageFormats),
+    HRBM(SK_DW_GET_GLYPH_IMAGE_FORMATS(fontFace4, glyph.getGlyphID(), 0, UINT32_MAX, &imageFormats),
          "Cannot get glyph image formats.");
     if (!(imageFormats & DWRITE_GLYPH_IMAGE_FORMATS_SVG)) {
         return false;

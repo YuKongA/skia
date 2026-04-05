@@ -1,0 +1,87 @@
+name: Build Skia for mingwX64
+
+on:
+  push:
+    branches:
+      - mingwX64
+  workflow_dispatch:
+    inputs:
+      skip_release:
+        description: "Skip release upload? (true/false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+env:
+  milestone: 144
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: version
+        shell: bash
+        run: |
+          SHA="$(git rev-parse --short=10 "$GITHUB_SHA")"
+          echo "value=m${{ env.milestone }}-${SHA}" >> "$GITHUB_OUTPUT"
+
+  mingw:
+    needs: prepare
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+    steps:
+      - run: git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Setup w64devkit (GCC for MinGW)
+        shell: bash
+        run: |
+          curl -L -o w64devkit.7z.exe https://github.com/skeeto/w64devkit/releases/download/v2.6.0/w64devkit-x64-2.6.0.7z.exe
+          7z x w64devkit.7z.exe -oC:/ -y
+
+      - name: Check release
+        if: ${{ github.event.inputs.skip_release != 'true' && github.ref == 'refs/heads/mingwX64' }}
+        shell: bash
+        run: python3 tools/skia_release/check_release.py --skia-dir . --version ${{ needs.prepare.outputs.version }} --build-type ${{ matrix.build_type }} --target mingw --machine x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Skia for mingwX64
+        shell: bash
+        run: |
+          export PATH="C:/w64devkit/bin:$PATH"
+          python3 tools/skia_release/build.py --skia-dir . --build-type ${{ matrix.build_type }} --target mingw --machine x64
+
+      - name: Archive
+        shell: bash
+        run: python3 tools/skia_release/archive.py --skia-dir . --version ${{ needs.prepare.outputs.version }} --build-type ${{ matrix.build_type }} --target mingw --machine x64
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event.inputs.skip_release != 'true' && github.ref == 'refs/heads/mingwX64' }}
+        with:
+          name: Skia-${{ needs.prepare.outputs.version }}-mingw-${{ matrix.build_type }}-x64.zip
+          path: "*.zip"
+
+      - name: Release
+        if: ${{ github.event.inputs.skip_release != 'true' && github.ref == 'refs/heads/mingwX64' }}
+        shell: bash
+        run: python3 tools/skia_release/release.py --skia-dir . --version ${{ needs.prepare.outputs.version }} --build-type ${{ matrix.build_type }} --target mingw --machine x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

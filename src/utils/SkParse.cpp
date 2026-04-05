@@ -180,7 +180,9 @@ const char* SkParse::FindS32(const char str[], int32_t* value)
 #include <xlocale.h>
 #endif
 
-#if defined(SK_BUILD_FOR_WIN)
+#if defined(__MINGW64__)
+  // MinGW does not provide _strtof_l or POSIX strtof_l
+#elif defined(SK_BUILD_FOR_WIN)
   static const _locale_t kDefaultLocale = _create_locale(LC_ALL, "C");
 #else
   static const locale_t kDefaultLocale = newlocale(LC_ALL_MASK, "C", nullptr);
@@ -191,7 +193,9 @@ const char* SkParse::FindScalar(const char str[], SkScalar* value) {
     str = skip_ws(str);
 
     char* stop;
-    #if defined(SK_BUILD_FOR_WIN)
+    #if defined(__MINGW64__)
+        float v = strtof(str, &stop);
+    #elif defined(SK_BUILD_FOR_WIN)
         float v = _strtof_l(str, &stop, kDefaultLocale);
     #else
         float v = strtof_l(str, &stop, kDefaultLocale);

@@ -159,6 +159,12 @@ def main():
           'clang_win="' + os.path.dirname(os.path.dirname(clang_path)) + '"',
           'is_trivial_abi=false',
       ]
+  elif target == 'mingw':
+    args += [
+        'target_os="mingw"',
+        'extra_cflags_cc+=["-fno-exceptions", "-fno-rtti"]',
+        'extra_cflags+=["-DSK_BUILD_FOR_WIN", "-D_CRT_SECURE_NO_WARNINGS", "-D_HAS_EXCEPTIONS=0", "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX", "-DSK_FONT_HOST_USE_SYSTEM_SETTINGS"]',
+    ]
   elif target == 'android':
     args += ['ndk="' + ndk + '"']
   elif target == 'wasm':

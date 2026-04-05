@@ -18,7 +18,7 @@ declare_args() {
   skia_enable_android_utils = is_skia_dev_build
   skia_enable_discrete_gpu = true
   skia_enable_fontmgr_empty = false
-  skia_enable_fontmgr_win = is_win
+  skia_enable_fontmgr_win = is_win || is_mingw
   skia_enable_gpu_debug_layers = is_skia_dev_build && is_debug
   skia_enable_optimize_size = false
   skia_enable_pdf = !is_wasm
@@ -76,7 +76,7 @@ declare_args() {
 
   # Currently only supported in Android framework
   skia_android_framework_use_perfetto = false
-  skia_use_piex = !is_win && !is_wasm
+  skia_use_piex = !is_win && !is_mingw && !is_wasm
   skia_use_rust_png_decode = false
   skia_use_rust_png_encode = false
   skia_use_sfml = false
@@ -142,7 +142,7 @@ declare_args() {
   skia_enable_fontmgr_custom_embedded = skia_use_freetype
   skia_enable_fontmgr_custom_empty = skia_use_freetype && !is_wasm
   skia_enable_fontmgr_fontconfig = skia_use_freetype && skia_use_fontconfig
-  skia_enable_fontmgr_win_gdi = is_win && !skia_enable_winuwp
+  skia_enable_fontmgr_win_gdi = (is_win || is_mingw) && !skia_enable_winuwp
   skia_enable_fontmgr_FontConfigInterface =
       skia_use_freetype && skia_use_fontconfig
   skia_enable_spirv_validation = is_skia_dev_build && is_debug && !skia_use_dawn

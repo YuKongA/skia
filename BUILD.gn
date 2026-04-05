@@ -500,7 +500,11 @@ optional("fontmgr_win_gdi") {
   public_defines = [ "SK_FONTMGR_GDI_AVAILABLE" ]
   public = skia_ports_windows_fonts_public
   sources = skia_ports_fonthost_win_sources
-  libs = [ "Gdi32.lib" ]
+  if (is_mingw) {
+    libs = [ "gdi32" ]
+  } else {
+    libs = [ "Gdi32.lib" ]
+  }
 }
 
 if (skia_lex) {
@@ -998,13 +1002,17 @@ optional("gpu") {
       sources += [ "src/gpu/ganesh/gl/mac/GrGLMakeNativeInterface_mac.cpp" ]
     } else if (is_ios) {
       sources += [ "src/gpu/ganesh/gl/iOS/GrGLMakeNativeInterface_iOS.cpp" ]
-    } else if (is_win && !skia_enable_winuwp) {
+    } else if ((is_win || is_mingw) && !skia_enable_winuwp) {
       sources += [
         "src/gpu/ganesh/gl/win/GrGLMakeNativeInterface_win.cpp",
         "src/gpu/ganesh/gl/win/GrGLMakeWinInterface.cpp",
       ]
       if (target_cpu != "arm64") {
-        libs += [ "OpenGL32.lib" ]
+        if (is_mingw) {
+          libs += [ "opengl32" ]
+        } else {
+          libs += [ "OpenGL32.lib" ]
+        }
       }
     } else {
       sources += [ "src/gpu/ganesh/gl/GrGLMakeNativeInterface_none.cpp" ]
@@ -1758,22 +1766,35 @@ skia_component("skia") {
     sources += skia_no_encode_webp_srcs
   }
 
-  if (is_win) {
+  if (is_win || is_mingw) {
     sources += skia_ports_windows_sources + [
                  "src/ports/SkDebug_win.cpp",
                  "src/ports/SkImageGeneratorWIC.cpp",
                ]
-    libs += [
-      "Ole32.lib",
-      "OleAut32.lib",
-    ]
-
-    if (!skia_enable_winuwp) {
+    if (is_mingw) {
       libs += [
-        "FontSub.lib",
-        "User32.lib",
-        "Usp10.lib",
+        "ole32",
+        "oleaut32",
+        "uuid",
       ]
+      if (!skia_enable_winuwp) {
+        libs += [
+          "user32",
+          "usp10",
+        ]
+      }
+    } else {
+      libs += [
+        "Ole32.lib",
+        "OleAut32.lib",
+      ]
+      if (!skia_enable_winuwp) {
+        libs += [
+          "FontSub.lib",
+          "User32.lib",
+          "Usp10.lib",
+        ]
+      }
     }
   } else {
     sources += [ "src/ports/SkOSFile_posix.cpp" ]
